@@ -54,7 +54,7 @@ start_high:
     mov $stack_end, %esp
     call kmain
 
-    /* If kmain returns, loop forever */
+    /* If kmain returns, halt forever */
 halt:
     cli
     hlt

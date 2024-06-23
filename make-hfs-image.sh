@@ -5,4 +5,4 @@
 PLATFORM=openfirmware-powerpc CC=clang LD=ld.lld bmake
 
 truncate -s 8M filesystem.img
-./copy-files.sh filesystem.img
+./copy-hfs-files.sh filesystem.img
