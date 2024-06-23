@@ -10,7 +10,7 @@ SECTIONS {
         *(.inittext)
     }
 
-    kernel_start = .;
+    _start = .;
 
     .text : AT(ADDR(.text)) {
         *(.text .text.*)
@@ -30,5 +30,5 @@ SECTIONS {
         *(.bss .bss.*)
     }
 
-    kernel_end = .;
+    _end = .;
 }

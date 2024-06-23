@@ -31,11 +31,9 @@ header:
 .globl start
 
 start:
-    mov %eax, mboot_sig
-    mov %ebx, mboot_ptr
+    mov %ebx, %edx /* put the multiboot structure pointer in the right register for the 2nd argument with regparm stdcall calling convention */
 
     lgdt gdt_ptr
-
     ljmp $0x08, $start_high
 
 .section .text
@@ -44,12 +42,12 @@ start:
 
 start_high:
     /* Prep segment registers */
-    mov $0x10, %ax
-    mov %ax, %ss
-    mov %ax, %ds
-    mov %ax, %es
-    mov %ax, %fs
-    mov %ax, %gs
+    mov $0x10, %bx
+    mov %bx, %ss
+    mov %bx, %ds
+    mov %bx, %es
+    mov %bx, %fs
+    mov %bx, %gs
 
     mov $stack_end, %esp
     call kmain
@@ -61,13 +59,6 @@ halt:
     jmp halt
 
 .section .data
-.globl mboot_sig
-.globl mboot_ptr
-
-mboot_sig:
-    .long 0
-mboot_ptr:
-    .long 0
 gdt_ptr:
     .word gdt_end - gdt - 1
     .long gdt

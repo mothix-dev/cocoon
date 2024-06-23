@@ -2,6 +2,9 @@
 
 #include "openfirmware.h"
 #include <stddef.h>
+#include "printf.h"
+#include "version.h"
+#include "malloc.h"
 
 /*
  * OpenFirmware interface based on kernie/impl/ppc/openfirmware.cpp from POBARISNA
@@ -120,16 +123,50 @@ int32_t big_endian_to_native_endian(int32_t value) {
     return res;
 }
 
-int32_t openfirmware_find_stdout(endpoint_t endpoint) {
+struct putchar_state {
+    endpoint_t endpoint;
+    int32_t handle;
+} putchar_state = {
+    NULL,
+    -1
+};
+
+void *claim(void *address, size_t size, size_t alignment) {
+    if (putchar_state.endpoint == NULL) return NULL;
+
+    static struct {
+        const char *cmd;
+        int num_args;
+        int num_returns;
+        void *address;
+        size_t size;
+        size_t alignment;
+        void *actual_address;
+    } args = {
+        "claim",
+        3,
+        1
+    };
+
+    args.address = address;
+    args.size = size;
+    args.alignment = alignment;
+
+    if (putchar_state.endpoint(&args) == -1 || args.actual_address == -1) return NULL;
+
+    return args.actual_address;
+}
+
+void openfirmware_main(endpoint_t endpoint) {
     // stdout handle acquiring code based on kernie/impl/ppc/kernie_special_ppc.cpp from POBARISNA
     // (https://gitlab.com/sarahcrowle/pobarisna/-/blob/2d165e40adfd5f6acfdf9cc0867aee51634e265f/kernie/impl/ppc/kernie_special_ppc.cpp)
 
     int32_t stdout_id;
 
-    int32_t chosen = openfirmware_finddevice(endpoint, "/chosen"); // "chosen" doesn't work on OpenBIOS, the leading / is required
-    if (chosen == -1) goto try_screen;
+    int32_t chosen_id = openfirmware_finddevice(endpoint, "/chosen"); // "chosen" doesn't work on OpenBIOS, the leading / is required
+    if (chosen_id == -1) goto try_screen;
 
-    int32_t size_written = openfirmware_getprop(endpoint, chosen, "stdout", &stdout_id, sizeof(stdout_id));
+    int32_t size_written = openfirmware_getprop(endpoint, chosen_id, "stdout", &stdout_id, sizeof(stdout_id));
     if (size_written != sizeof(stdout_id)) goto try_screen;
 
     stdout_id = big_endian_to_native_endian(stdout_id);
@@ -139,28 +176,16 @@ try_screen:
         stdout_id = openfirmware_open(endpoint, "/screen");
     }
 
-    if (stdout_id == 0) {
-        return -1;
-    } else {
-        return stdout_id;
-    }
-}
-
-struct putchar_state {
-    endpoint_t endpoint;
-    int32_t handle;
-} putchar_state = {
-    NULL,
-    -1
-};
-
-void openfirmware_setup_putchar(endpoint_t endpoint) {
     putchar_state.endpoint = endpoint;
-    putchar_state.handle = openfirmware_find_stdout(endpoint);
+    putchar_state.handle = stdout_id;
+
+    printf(NAME_VERSION_INFO "\r\n");
+
+    init_heap();
 }
 
 void _putchar(char c) {
-    if (putchar_state.handle == -1) return;
+    if (putchar_state.handle == 0 || putchar_state.handle == -1) return;
     openfirmware_write(putchar_state.endpoint, putchar_state.handle, &c, 1);
 }
 
