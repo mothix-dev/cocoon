@@ -6,6 +6,7 @@
 #include "version.h"
 #include "malloc.h"
 #include "string.h"
+#include "tar.h"
 
 /*
  * OpenFirmware interface based on kernie/impl/ppc/openfirmware.cpp from POBARISNA
@@ -146,7 +147,7 @@ uint32_t openfirmware_read(endpoint_t endpoint, int32_t handle, char *buffer, ui
     args.handle = handle;
     args.buffer = buffer;
     args.buffer_length = buffer_length;
-    args.read_length = -1;
+    args.read_length = 0;
 
     endpoint(&args);
     return args.read_length;
@@ -170,10 +171,33 @@ uint32_t openfirmware_write(endpoint_t endpoint, int32_t handle, const char *buf
     args.handle = handle;
     args.buffer = buffer;
     args.buffer_length = buffer_length;
-    args.written_length = -1;
+    args.written_length = 0;
 
     endpoint(&args);
     return args.written_length;
+}
+
+bool openfirmware_seek(endpoint_t endpoint, int32_t handle, int32_t pos_hi, int32_t pos_lo) {
+    static struct {
+        const char *cmd;
+        int num_args;
+        int num_returns;
+        int handle;
+        int pos_hi;
+        int pos_lo;
+        int status;
+    } args = {
+        "seek",
+        3,
+        1
+    };
+
+    args.handle = handle;
+    args.pos_hi = pos_hi;
+    args.pos_lo = pos_lo;
+
+    if (endpoint(&args) == -1) return false;
+    return args.status != -1;
 }
 
 int32_t big_endian_to_native_endian(int32_t value) {
@@ -300,6 +324,10 @@ try_screen:
     printf("path: \"%s\", command line: \"%s\"\r\n", bootpath, cmdline);
 
     struct argument_pair *pairs = parse_arguments(cmdline);
+    if (pairs == NULL) {
+        printf("FATAL: couldn't allocate memory for parsed command line\r\n");
+        while (1);
+    }
 
     const char *initrd_filename = "initrd.tar";
     for (struct argument_pair *p = pairs; p->key != NULL; p ++)
@@ -319,12 +347,41 @@ try_screen:
         while (1);
     }
 
-    printf("initrd contents: \"");
-    for (char c; openfirmware_read(endpoint, handle, &c, 1) == 1;) {
-        if (c == '\r' || c == '\n')
-            printf("\r\n");
-        else
-            printf("%c", c);
+    size_t buffer_size = 0;
+    char c;
+    while (openfirmware_seek(endpoint, handle, 0, buffer_size += PAGE_SIZE) && openfirmware_read(endpoint, handle, &c, 1) == 1);
+    openfirmware_seek(endpoint, handle, 0, 0);
+    printf("initrd buffer size: 0x%x (%d)\r\n", buffer_size, buffer_size);
+
+    char *initrd_data = aligned_alloc(PAGE_SIZE, buffer_size);
+    if (initrd_data == NULL) {
+        printf("FATAL: could not allocate memory for initrd\r\n");
+        while (1);
+    }
+
+    size_t initrd_length = openfirmware_read(endpoint, handle, initrd_data, buffer_size);
+
+    const char *kernel_filename = "/actias";
+    for (struct argument_pair *p = pairs; p->key != NULL; p ++)
+        if (strcmp(p->key, "kernel") == 0 && p->value != NULL) {
+            kernel_filename = p->value;
+            break;
+        }
+
+    printf("using \"%s\" as kernel\r\n", kernel_filename);
+
+    const char *data;
+    size_t size;
+
+    struct tar_iterator *initrd = open_tar(initrd_data, initrd_data + initrd_length);
+    if (!tar_find(initrd, kernel_filename, TAR_NORMAL_FILE, &data, &size)) {
+        printf("FATAL: couldn't find kernel in initrd\r\n");
+        while (1);
+    }
+
+    printf("kernel contents: \"");
+    for (size_t i = 0; i < size; i ++) {
+        printf("%c", data[i]);
     }
     printf("\"\r\n");
 

@@ -57,12 +57,26 @@ void *aligned_alloc(size_t alignment, size_t size) {
 
         size_t claim_size = (size_t) (new_heap_end - heap_end);
 
-        printf("malloc: claiming 0x%p to 0x%p (size %d)\r\n", heap_end, new_heap_end, claim_size);
+        while (1) {
+            printf("malloc: claiming 0x%p to 0x%p (size %d)\r\n", heap_end, new_heap_end, claim_size);
 
-        void *claimed_address = claim(heap_end, claim_size, 0);
-        if (claimed_address == NULL || claimed_address != heap_end) {
-            printf("malloc: claim failed (out of memory?)\r\n");
-            return NULL;
+            void *claimed_address = claim(heap_end, claim_size, 0);
+            if (claimed_address == NULL || claimed_address != heap_end) {
+                if (heap_start == heap_end && ((size_t) heap_start) < (size_t) (-PAGE_SIZE)) {
+                    // the heap hasn't been set up yet, find the first area of available memory and move the start of the heap to it
+                    printf("malloc: claim failed, trying again\r\n");
+
+                    original_heap_start = heap_start = heap_end = (struct header *) ((size_t) heap_start + PAGE_SIZE);
+                    new_heap_end += PAGE_SIZE;
+
+                    continue;
+                } else {
+                    printf("malloc: claim failed (out of memory?)\r\n");
+                    return NULL;
+                }
+            }
+
+            break;
         }
 
         struct header *new_header = (struct header *) heap_end;
@@ -70,7 +84,7 @@ void *aligned_alloc(size_t alignment, size_t size) {
 
         new_header->is_free = true;
         new_header->block_size = claim_size;
-        new_footer->header = header;
+        new_footer->header = new_header;
 
         heap_end = new_heap_end;
 

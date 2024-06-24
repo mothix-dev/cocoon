@@ -13,5 +13,7 @@ hattrib -b cocoon
 hcopy cocoon :cocoon:cocoon
 hattrib -t tbxi :cocoon:cocoon
 
+hcopy initrd.tar :cocoon:initrd.tar
+
 humount
 sync

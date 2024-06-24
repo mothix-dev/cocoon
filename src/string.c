@@ -29,6 +29,8 @@ int strcmp(const char *a, const char *b) {
 
 struct argument_pair *parse_arguments(const char *string) {
     char *argument_buffer = strdup(string);
+    if (argument_buffer == NULL) return NULL;
+
     size_t num_pairs = 0;
 
     for (const char *c = argument_buffer; *c != 0; c ++)

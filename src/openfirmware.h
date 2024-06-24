@@ -2,6 +2,7 @@
 #ifdef OPENFIRMWARE
 
 #include <stdint.h>
+#include <stdbool.h>
 
 // TODO: maybe change the calling convention based on architecture? not sure if any planned targets with openfirmware use a different calling convention
 typedef int (__stdcall *endpoint_t)(void *);
@@ -14,6 +15,7 @@ const char *openfirmware_getpropstr(endpoint_t endpoint, int32_t handle, const c
 int32_t openfirmware_open(endpoint_t endpoint, const char* device);
 uint32_t openfirmware_read(endpoint_t endpoint, int32_t handle, char *buffer, uint32_t buffer_length);
 uint32_t openfirmware_write(endpoint_t endpoint, int32_t handle, const char *buffer, uint32_t buffer_length);
+bool openfirmware_seek(endpoint_t endpoint, int32_t handle, int32_t pos_hi, int32_t pos_lo);
 int32_t openfirmware_find_stdout(endpoint_t endpoint);
 void openfirmware_main(endpoint_t endpoint);
 
