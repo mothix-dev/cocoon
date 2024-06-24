@@ -14,4 +14,4 @@
 
 #define PROGRAM_NAME "cocoon"
 
-#define NAME_VERSION_INFO PROGRAM_NAME " " VERSION " (built on " __DATE__ " at " __TIME__ " with " __VERSION__ ")"
+#define NAME_VERSION_INFO PROGRAM_NAME " " VERSION " for " STRINGIFY(PLATFORM) " (built on " __DATE__ " at " __TIME__ " with " __VERSION__ ")"

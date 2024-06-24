@@ -2,7 +2,7 @@ CC ?= clang
 LD ?= ld.lld
 MKDEP ?= bmkdep
 
-CFLAGS += -O2 -Isrc -Iprintf -nostdlib -fno-builtin -ffreestanding -fno-stack-protector -static -Wall -mregparm=3 -DPRINTF_DISABLE_SUPPORT_LONG_LONG
+CFLAGS += -O2 -Isrc -Iprintf -nostdlib -fno-builtin -ffreestanding -fno-stack-protector -static -Wall -mregparm=3 -DPRINTF_DISABLE_SUPPORT_LONG_LONG -DPLATFORM=$(PLATFORM)
 
 PLATFORM_PATH = src/platform/$(PLATFORM)
 

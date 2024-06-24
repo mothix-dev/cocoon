@@ -5,6 +5,7 @@
 #include "printf.h"
 #include "version.h"
 #include "malloc.h"
+#include "string.h"
 
 /*
  * OpenFirmware interface based on kernie/impl/ppc/openfirmware.cpp from POBARISNA
@@ -45,7 +46,7 @@ int32_t openfirmware_finddevice(endpoint_t endpoint, const char *name) {
     return args.handle;
 }
 
-int32_t openfirmware_getprop(endpoint_t endpoint, uint32_t handle, const char *property, void *buffer, uint32_t buffer_length) {
+int32_t openfirmware_getprop(endpoint_t endpoint, int32_t handle, const char *property, void *buffer, uint32_t buffer_length) {
     static struct { 
         const char *cmd;
         int num_args;
@@ -71,6 +72,43 @@ int32_t openfirmware_getprop(endpoint_t endpoint, uint32_t handle, const char *p
     return args.written_size;
 }
 
+int32_t openfirmware_getproplen(endpoint_t endpoint, int32_t handle, const char *property) {
+    static struct {
+        const char *cmd;
+        int num_args;
+        int num_returns;
+        int handle;
+        const char *property;
+        int length;
+    } args = {
+        "getproplen",
+        2,
+        1
+    };
+
+    args.handle = handle;
+    args.property = property;
+
+    if (endpoint(&args) == -1) return -1;
+
+    return args.length;
+}
+
+const char *openfirmware_getpropstr(endpoint_t endpoint, int32_t handle, const char *property) {
+    int32_t length = openfirmware_getproplen(endpoint, handle, property);
+    if (length == 0 || length == -1) return NULL;
+
+    char *buffer = malloc(length);
+    int32_t result = openfirmware_getprop(endpoint, handle, property, (void *) buffer, length);
+
+    if (result != length) {
+        free(buffer);
+        return NULL;
+    }
+
+    return (const char *) buffer;
+}
+
 int32_t openfirmware_open(endpoint_t endpoint, const char* device) {
     static struct {
         const char *cmd;
@@ -88,6 +126,30 @@ int32_t openfirmware_open(endpoint_t endpoint, const char* device) {
     if (endpoint(&args) == -1 || args.handle == 0) return -1;
 
     return args.handle;
+}
+
+uint32_t openfirmware_read(endpoint_t endpoint, int32_t handle, char *buffer, uint32_t buffer_length) {
+    static struct {
+        const char *cmd;
+        int num_args;
+        int num_returns;
+        int handle;
+        const char *buffer;
+        int buffer_length;
+        unsigned int read_length;
+    } args = {
+        "read",
+        3,
+        1
+    };
+
+    args.handle = handle;
+    args.buffer = buffer;
+    args.buffer_length = buffer_length;
+    args.read_length = -1;
+
+    endpoint(&args);
+    return args.read_length;
 }
 
 uint32_t openfirmware_write(endpoint_t endpoint, int32_t handle, const char *buffer, uint32_t buffer_length) {
@@ -152,9 +214,59 @@ void *claim(void *address, size_t size, size_t alignment) {
     args.size = size;
     args.alignment = alignment;
 
-    if (putchar_state.endpoint(&args) == -1 || args.actual_address == -1) return NULL;
+    if (putchar_state.endpoint(&args) == -1 || (size_t) args.actual_address == -1) return NULL;
 
     return args.actual_address;
+}
+
+static const char *resolve_relative_path(const char *absolute, const char *relative) {
+    // calculate the worst case path buffer size
+    size_t path_buffer_size = strlen(absolute) + strlen(relative) + 1;
+
+    char *path_buffer = malloc(path_buffer_size);
+    if (path_buffer == NULL) {
+        printf("FATAL: couldn't allocate memory for path buffer\r\n");
+        while (1);
+    }
+
+    int i = 0;
+
+    // add node address from absolute path
+    for (const char *c = absolute; *c != 0 && *c != ':' && i < path_buffer_size - 1; c ++) {
+        path_buffer[i ++] = *c;
+    }
+
+    // add node address/arguments separator
+    path_buffer[i ++] = ':';
+
+    // add partition specifier
+    int index_after_separator = i;
+    for (const char *c = &absolute[i]; *c != 0 && ((*c >= '0' && *c <= '9') || *c == ',') && i < path_buffer_size - 1; c ++) {
+        path_buffer[i ++] = *c;
+    }
+    // if the last character found wasn't a partition separator, undo this operation
+    if (path_buffer[i - 1] != ',') {
+        i = index_after_separator;
+    }
+
+    // if the initrd path is relative, fill in the path before it up until the filename of the kernel
+    if (*relative != '/') {
+        int last_slash = strlen(absolute);
+        for (; last_slash > i && absolute[last_slash] != '\\'; last_slash --);
+        for (; i <= last_slash && i < path_buffer_size - 1; i ++) {
+            path_buffer[i] = absolute[i];
+        }
+    }
+
+    // add the initrd path
+    for (const char *c = relative; *c != 0 && i < path_buffer_size - 1; c ++) {
+        path_buffer[i ++] = *c == '/' ? '\\' : *c;
+    }
+
+    // add null terminator
+    path_buffer[i] = path_buffer[path_buffer_size - 1] = 0;
+
+    return path_buffer;
 }
 
 void openfirmware_main(endpoint_t endpoint) {
@@ -182,6 +294,41 @@ try_screen:
     printf(NAME_VERSION_INFO "\r\n");
 
     init_heap();
+
+    const char *bootpath = openfirmware_getpropstr(endpoint, chosen_id, "bootpath");
+    const char *cmdline = openfirmware_getpropstr(endpoint, chosen_id, "bootargs");
+    printf("path: \"%s\", command line: \"%s\"\r\n", bootpath, cmdline);
+
+    struct argument_pair *pairs = parse_arguments(cmdline);
+
+    const char *initrd_filename = "initrd.tar";
+    for (struct argument_pair *p = pairs; p->key != NULL; p ++)
+        if (strcmp(p->key, "initrd") == 0 && p->value != NULL) {
+            initrd_filename = p->value;
+            break;
+        }
+
+    printf("using \"%s\" as initrd\r\n", initrd_filename);
+
+    const char *absolute_initrd_path = resolve_relative_path(bootpath, initrd_filename);
+    printf("resolved initrd path to \"%s\"\r\n", absolute_initrd_path);
+
+    int32_t handle = openfirmware_open(endpoint, absolute_initrd_path);
+    if (handle == 0 || handle == -1) {
+        printf("FATAL: couldn't open initrd\r\n");
+        while (1);
+    }
+
+    printf("initrd contents: \"");
+    for (char c; openfirmware_read(endpoint, handle, &c, 1) == 1;) {
+        if (c == '\r' || c == '\n')
+            printf("\r\n");
+        else
+            printf("%c", c);
+    }
+    printf("\"\r\n");
+
+    print_memory_blocks();
 }
 
 void _putchar(char c) {
