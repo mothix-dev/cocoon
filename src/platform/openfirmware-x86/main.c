@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include "openfirmware.h"
+#include "platform/openfirmware.h"
 
 void __stdcall kmain(endpoint_t endpoint) {
     openfirmware_main(endpoint);

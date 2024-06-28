@@ -7,8 +7,8 @@ CFLAGS += -O2 -Isrc -Iprintf -nostdlib -fno-builtin -ffreestanding -fno-stack-pr
 PLATFORM_PATH = src/platform/$(PLATFORM)
 
 MULTIBOOT_X86_CFLAGS != [ "$(PLATFORM)" = multiboot-x86 ] && echo "-target i586-unknown-none -march=i586 -DPAGE_SIZE=4096" || echo ""
-OPENFIRMWARE_POWERPC_CFLAGS != [ "$(PLATFORM)" = openfirmware-powerpc ] && echo "-target ppc32-unknown-none -mcpu=601 -DOPENFIRMWARE -DPAGE_SIZE=4096" || echo ""
-OPENFIRMWARE_X86_CFLAGS != [ "$(PLATFORM)" = openfirmware-x86 ] && echo "-target i586-unknown-none -march=i586 -DOPENFIRMWARE -DPAGE_SIZE=4096" || echo ""
+OPENFIRMWARE_POWERPC_CFLAGS != [ "$(PLATFORM)" = openfirmware-powerpc ] && echo "-target ppc32-unknown-none -mcpu=601 -DPAGE_SIZE=4096" || echo ""
+OPENFIRMWARE_X86_CFLAGS != [ "$(PLATFORM)" = openfirmware-x86 ] && echo "-target i586-unknown-none -march=i586 -DPAGE_SIZE=4096" || echo ""
 CFLAGS += $(MULTIBOOT_X86_CFLAGS) $(OPENFIRMWARE_POWERPC_CFLAGS) $(OPENFIRMWARE_X86_CFLAGS)
 
 MULTIBOOT_X86_LDFLAGS != [ "$(PLATFORM)" = multiboot-x86 ] && echo "-T$(PLATFORM_PATH)/kernel.ld" || echo ""
@@ -16,6 +16,9 @@ LDFLAGS += $(MULTIBOOT_X86_LDFLAGS)
 
 PLATFORM_SOURCES != find $(PLATFORM_PATH) -maxdepth 1 -name "*.c" -o -name "*.S"
 COMMON_SOURCES != find src -maxdepth 1 -name "*.c"
+
+OPENFIRMWARE_SOURCES != [ -n "`echo $(PLATFORM) | grep -e 'openfirmware-.*'`" ] && echo "src/platform/openfirmware.c" || echo ""
+PLATFORM_SOURCES += $(OPENFIRMWARE_SOURCES)
 
 SOURCE_FILES = $(COMMON_SOURCES) $(PLATFORM_SOURCES) printf/printf.c
 C_OBJECTS = $(SOURCE_FILES:.c=.o)

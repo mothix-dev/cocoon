@@ -1,5 +1,4 @@
 #pragma once
-#ifdef OPENFIRMWARE
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -18,5 +17,3 @@ uint32_t openfirmware_write(endpoint_t endpoint, int32_t handle, const char *buf
 bool openfirmware_seek(endpoint_t endpoint, int32_t handle, int32_t pos_hi, int32_t pos_lo);
 int32_t openfirmware_find_stdout(endpoint_t endpoint);
 void openfirmware_main(endpoint_t endpoint);
-
-#endif

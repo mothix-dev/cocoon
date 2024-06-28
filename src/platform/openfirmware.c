@@ -1,6 +1,4 @@
-#ifdef OPENFIRMWARE
-
-#include "openfirmware.h"
+#include "platform/openfirmware.h"
 #include <stddef.h>
 #include "printf.h"
 #include "version.h"
@@ -392,5 +390,3 @@ void _putchar(char c) {
     if (putchar_state.handle == 0 || putchar_state.handle == -1) return;
     openfirmware_write(putchar_state.endpoint, putchar_state.handle, &c, 1);
 }
-
-#endif
