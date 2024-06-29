@@ -3,6 +3,8 @@
 #include "printf.h"
 #include "malloc.h"
 
+// TODO: PAE support
+
 struct page {
     uint32_t present: 1;
     uint32_t read_write: 1;

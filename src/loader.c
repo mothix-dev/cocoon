@@ -19,7 +19,7 @@ typedef Elf64_Phdr Elf_Phdr;
 #endif
 
 void load_kernel_from_tar(struct argument_pair *pairs, const char *initrd_start, const char *initrd_end) {
-    //printf("initrd is at 0x%p to 0x%p\r\n", initrd_start, initrd_end);
+    //printf("initrd is at 0x%p to 0x%p (size %d)\r\n", initrd_start, initrd_end, initrd_end - initrd_start);
 
     const char *kernel_filename = "/actias";
     for (struct argument_pair *p = pairs; p->key != NULL; p ++)
@@ -43,6 +43,8 @@ void load_kernel_from_tar(struct argument_pair *pairs, const char *initrd_start,
         printf("FATAL: kernel is too small\r\n");
         while (1);
     }
+
+    //printf("kernel is at 0x%p to 0x%p (size %d)\r\n", data, data + size, size);
 
     //print_memory_blocks();
 
@@ -81,6 +83,11 @@ void load_kernel_from_tar(struct argument_pair *pairs, const char *initrd_start,
     }
 
     const Elf_Ehdr *header = (const Elf_Ehdr *) data;
+
+    if (header->e_version != EV_CURRENT) {
+        printf("FATAL: kernel is ELF version %d, expected version %d (maybe wrong endianness?)\r\n", header->e_version, EV_CURRENT);
+        while (1);
+    }
 
     void *program_headers = (void *) (data + header->e_phoff);
     size_t ph_size = (size_t) header->e_phentsize;
@@ -141,6 +148,8 @@ void load_kernel_from_tar(struct argument_pair *pairs, const char *initrd_start,
     }
 
     //print_memory_blocks();
+
+    // TODO: map in initrd, memory map, device tree, etc
 
     size_t kernel_entry_point = (size_t) header->e_entry;
     printf("starting kernel at 0x%p...\r\n", kernel_entry_point);

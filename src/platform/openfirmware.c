@@ -13,6 +13,8 @@
  * (https://gitlab.com/sarahcrowle/pobarisna/-/blob/2d165e40adfd5f6acfdf9cc0867aee51634e265f/kernie/impl/ppc/openfirmware.cpp)
  */
 
+// TODO: 64 bit support
+
 void openfirmware_exit(endpoint_t endpoint) {
     static struct {
         const char *cmd;
@@ -370,6 +372,31 @@ void _putchar(char c) {
 }
 
 uint64_t virtual_address_to_physical(void *address) {
-    printf("TODO: virtual_address_to_physical()\r\n");
-    return 0;
+    static struct {
+        const char *cmd;
+        int num_args;
+        int num_returns;
+        const char *forth_cmd;
+        void *virtual_address;
+        int catch_result;
+        int successful;
+        int mode;
+        int phys_hi;
+        int phys_lo;
+    } args = {
+        "interpret",
+        2,
+        5,
+        "translate"
+    };
+
+    args.virtual_address = address;
+
+    if (putchar_state.endpoint(&args) == -1 || args.catch_result != 0 || args.successful != 0) {
+        printf("translate call for 0x%p failed, leaving address untranslated\r\n", address);
+        return (uint64_t) address;
+    }
+
+    // is this correct?
+    return ((uint64_t) args.phys_hi << 32) | (uint64_t) args.phys_lo;
 }
