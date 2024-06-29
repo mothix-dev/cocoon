@@ -5,6 +5,8 @@
 #include "malloc.h"
 #include "string.h"
 #include "tar.h"
+#include "loader.h"
+#include "platform/bsp.h"
 
 /*
  * OpenFirmware interface based on kernie/impl/ppc/openfirmware.cpp from POBARISNA
@@ -359,34 +361,15 @@ try_screen:
 
     size_t initrd_length = openfirmware_read(endpoint, handle, initrd_data, buffer_size);
 
-    const char *kernel_filename = "/actias";
-    for (struct argument_pair *p = pairs; p->key != NULL; p ++)
-        if (strcmp(p->key, "kernel") == 0 && p->value != NULL) {
-            kernel_filename = p->value;
-            break;
-        }
-
-    printf("using \"%s\" as kernel\r\n", kernel_filename);
-
-    const char *data;
-    size_t size;
-
-    struct tar_iterator *initrd = open_tar(initrd_data, initrd_data + initrd_length);
-    if (!tar_find(initrd, kernel_filename, TAR_NORMAL_FILE, &data, &size)) {
-        printf("FATAL: couldn't find kernel in initrd\r\n");
-        while (1);
-    }
-
-    printf("kernel contents: \"");
-    for (size_t i = 0; i < size; i ++) {
-        printf("%c", data[i]);
-    }
-    printf("\"\r\n");
-
-    print_memory_blocks();
+    load_kernel_from_tar(pairs, (void*) initrd_data, (void *) initrd_data + initrd_length);
 }
 
 void _putchar(char c) {
     if (putchar_state.handle == 0 || putchar_state.handle == -1) return;
     openfirmware_write(putchar_state.endpoint, putchar_state.handle, &c, 1);
+}
+
+uint64_t virtual_address_to_physical(void *address) {
+    printf("TODO: virtual_address_to_physical()\r\n");
+    return 0;
 }

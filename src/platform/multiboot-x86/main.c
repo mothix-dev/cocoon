@@ -5,6 +5,8 @@
 #include "malloc.h"
 #include "string.h"
 #include "tar.h"
+#include "loader.h"
+#include "platform/bsp.h"
 
 struct {
     struct multiboot_header *header;
@@ -44,29 +46,7 @@ void kmain(uint32_t signature, struct multiboot_header *header) {
         while (1);
     }
 
-    const char *kernel_filename = "/actias";
-    for (struct argument_pair *p = pairs; p->key != NULL; p ++)
-        if (strcmp(p->key, "kernel") == 0 && p->value != NULL) {
-            kernel_filename = p->value;
-            break;
-        }
-
-    printf("using \"%s\" as kernel\r\n", kernel_filename);
-
-    const char *data;
-    size_t size;
-
-    struct tar_iterator *initrd = open_tar(initrd_module.start, initrd_module.end);
-    if (!tar_find(initrd, kernel_filename, TAR_NORMAL_FILE, &data, &size)) {
-        printf("FATAL: couldn't find kernel in initrd\r\n");
-        while (1);
-    }
-
-    printf("kernel contents: \"");
-    for (size_t i = 0; i < size; i ++) {
-        printf("%c", data[i]);
-    }
-    printf("\"\r\n");
+    load_kernel_from_tar(pairs, initrd_module.start, initrd_module.end);
 
     while (1);
 }
@@ -108,4 +88,8 @@ void *claim(void *address, size_t size, size_t alignment) {
     // TODO: check memory map to make sure this claim isn't in an unavailable memory region
 
     return address;
+}
+
+uint64_t virtual_address_to_physical(void *address) {
+    return (uint64_t) address;
 }
