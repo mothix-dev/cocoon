@@ -354,6 +354,10 @@ try_screen:
     printf(NAME_VERSION_INFO "\r\n");
 
     if (mmu_id == -1) printf("couldn't find an MMU property in /chosen (or no /chosen exists), assuming MMU is disabled (if things break, this may be why!)\r\n");
+    if (mmu_id == 0) {
+        printf("MMU handle probably shouldn't be 0, assuming firmware bug and MMU is disabled\r\n");
+        mmu_id = -1;
+    }
 
     init_heap();
 

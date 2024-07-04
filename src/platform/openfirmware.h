@@ -15,5 +15,6 @@ int32_t openfirmware_open(endpoint_t endpoint, const char* device);
 uint32_t openfirmware_read(endpoint_t endpoint, int32_t handle, char *buffer, uint32_t buffer_length);
 uint32_t openfirmware_write(endpoint_t endpoint, int32_t handle, const char *buffer, uint32_t buffer_length);
 bool openfirmware_seek(endpoint_t endpoint, int32_t handle, int32_t pos_hi, int32_t pos_lo);
+uint64_t openfirmware_translate(endpoint_t endpoint, int32_t mmu_handle, void *address);
 int32_t openfirmware_find_stdout(endpoint_t endpoint);
 void openfirmware_main(endpoint_t endpoint);
