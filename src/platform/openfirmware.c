@@ -202,6 +202,35 @@ bool openfirmware_seek(endpoint_t endpoint, int32_t handle, int32_t pos_hi, int3
     return args.status != -1;
 }
 
+uint64_t openfirmware_translate(endpoint_t endpoint, int32_t mmu_handle, void *address) {
+    static struct {
+        const char *cmd;
+        int num_args;
+        int num_returns;
+        const char *forth_cmd;
+        int handle;
+        void *virtual_address;
+        int catch_result;
+        int successful;
+        int mode;
+        int phys;
+    } args = {
+        "call-method",
+        3,
+        4,
+        "translate"
+    };
+
+    args.handle = mmu_handle;
+    args.virtual_address = address;
+
+    if (endpoint(&args) == -1 || args.catch_result != 0 || args.successful == 0) {
+        return -1;
+    }
+
+    return args.phys;
+}
+
 int32_t big_endian_to_native_endian(int32_t value) {
     uint8_t *p = (uint8_t *) &value;
     int32_t res = 0;
@@ -218,6 +247,8 @@ struct putchar_state {
     NULL,
     -1
 };
+
+int32_t mmu_id = -1;
 
 void *claim(void *address, size_t size, size_t alignment) {
     if (putchar_state.endpoint == NULL) return NULL;
@@ -304,7 +335,10 @@ void openfirmware_main(endpoint_t endpoint) {
     int32_t chosen_id = openfirmware_finddevice(endpoint, "/chosen"); // "chosen" doesn't work on OpenBIOS, the leading / is required
     if (chosen_id == -1) goto try_screen;
 
-    int32_t size_written = openfirmware_getprop(endpoint, chosen_id, "stdout", &stdout_id, sizeof(stdout_id));
+    int32_t size_written = openfirmware_getprop(endpoint, chosen_id, "mmu", &mmu_id, sizeof(mmu_id));
+    if (size_written != sizeof(mmu_id)) mmu_id = -1;
+
+    size_written = openfirmware_getprop(endpoint, chosen_id, "stdout", &stdout_id, sizeof(stdout_id));
     if (size_written != sizeof(stdout_id)) goto try_screen;
 
     stdout_id = big_endian_to_native_endian(stdout_id);
@@ -318,6 +352,8 @@ try_screen:
     putchar_state.handle = stdout_id;
 
     printf(NAME_VERSION_INFO "\r\n");
+
+    if (mmu_id == -1) printf("couldn't find an MMU property in /chosen (or no /chosen exists), assuming MMU is disabled (if things break, this may be why!)\r\n");
 
     init_heap();
 
@@ -372,31 +408,12 @@ void _putchar(char c) {
 }
 
 uint64_t virtual_address_to_physical(void *address) {
-    static struct {
-        const char *cmd;
-        int num_args;
-        int num_returns;
-        const char *forth_cmd;
-        void *virtual_address;
-        int catch_result;
-        int successful;
-        int mode;
-        int phys_hi;
-        int phys_lo;
-    } args = {
-        "interpret",
-        2,
-        5,
-        "translate"
-    };
+    if (mmu_id == -1) return (uint64_t) address;
 
-    args.virtual_address = address;
-
-    if (putchar_state.endpoint(&args) == -1 || args.catch_result != 0 || args.successful != 0) {
-        printf("translate call for 0x%p failed, leaving address untranslated\r\n", address);
-        return (uint64_t) address;
+    uint64_t phys = openfirmware_translate(putchar_state.endpoint, mmu_id, address);
+    if (phys == -1) {
+        printf("FATAL: virtual to physical address translation for 0x%p failed\r\n", address);
+        while (1);
     }
-
-    // is this correct?
-    return ((uint64_t) args.phys_hi << 32) | (uint64_t) args.phys_lo;
+    return phys;
 }
